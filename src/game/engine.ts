@@ -243,28 +243,74 @@ export class GameEngine {
     this.setupMissions();
     this.setupTetherLine();
 
+    // Add player mesh to scene and sync position
+    if (this.player.mesh) {
+      this.player.mesh.position.set(
+        this.player.position.x,
+        this.player.position.y + CONFIG.PLAYER_HEIGHT / 2,
+        this.player.position.z
+      );
+      this.scene.add(this.player.mesh);
+    }
+
+    // Set initial camera position
+    this.camera.position.set(0, CONFIG.CAM_HEIGHT + 3, CONFIG.CAM_DISTANCE);
+    this.camera.lookAt(0, 1.5, 0);
+
     // Input handlers
     this.setupInput();
 
     // Load save
     this.loadGame();
 
-    // Start loop
-    this.showPause = false;
+    // Start loop (game starts paused, user clicks to begin)
+    this.showPause = true;
     this.animate();
   }
 
   private createPlayer(): PlayerState {
-    const geo = new THREE.CapsuleGeometry(CONFIG.PLAYER_RADIUS, CONFIG.PLAYER_HEIGHT - CONFIG.PLAYER_RADIUS * 2, 4, 8);
-    const mat = new THREE.MeshLambertMaterial({ color: 0x4488ff });
-    const mesh = new THREE.Mesh(geo, mat);
-    mesh.position.set(0, CONFIG.PLAYER_HEIGHT / 2, 0);
+    // Create a visible character group (body + head)
+    const group = new THREE.Group();
+    
+    // Body
+    const bodyGeo = new THREE.CapsuleGeometry(0.35, 0.8, 4, 8);
+    const bodyMat = new THREE.MeshLambertMaterial({ color: 0x2266cc });
+    const body = new THREE.Mesh(bodyGeo, bodyMat);
+    body.position.y = 0.7;
+    group.add(body);
+    
+    // Head
+    const headGeo = new THREE.SphereGeometry(0.25, 8, 8);
+    const headMat = new THREE.MeshLambertMaterial({ color: 0xffcc88 });
+    const head = new THREE.Mesh(headGeo, headMat);
+    head.position.y = 1.4;
+    group.add(head);
+    
+    // Arms
+    const armGeo = new THREE.CapsuleGeometry(0.1, 0.5, 4, 4);
+    const armMat = new THREE.MeshLambertMaterial({ color: 0x2266cc });
+    const leftArm = new THREE.Mesh(armGeo, armMat);
+    leftArm.position.set(-0.45, 0.8, 0);
+    group.add(leftArm);
+    const rightArm = new THREE.Mesh(armGeo, armMat);
+    rightArm.position.set(0.45, 0.8, 0);
+    group.add(rightArm);
+    
+    // Legs
+    const legGeo = new THREE.CapsuleGeometry(0.12, 0.5, 4, 4);
+    const legMat = new THREE.MeshLambertMaterial({ color: 0x333366 });
+    const leftLeg = new THREE.Mesh(legGeo, legMat);
+    leftLeg.position.set(-0.15, 0.2, 0);
+    group.add(leftLeg);
+    const rightLeg = new THREE.Mesh(legGeo, legMat);
+    rightLeg.position.set(0.15, 0.2, 0);
+    group.add(rightLeg);
 
     return {
       id: 'player',
-      position: new THREE.Vector3(0, 0, 0),
+      position: new THREE.Vector3(0, 1, 0),
       velocity: new THREE.Vector3(),
-      mesh,
+      mesh: group,
       active: true,
       health: CONFIG.PLAYER_START_HEALTH,
       maxHealth: CONFIG.PLAYER_MAX_HEALTH,
@@ -373,6 +419,7 @@ export class GameEngine {
     for (let i = 0; i < CONFIG.NPC_COUNT_PED; i++) {
       const npc = this.createNPC('pedestrian');
       npc.position.set(this.rng.range(-200, 0), 0, this.rng.range(-CONFIG.WORLD_SIZE_Z / 2, CONFIG.WORLD_SIZE_Z / 2));
+      if (npc.mesh) npc.mesh.position.set(npc.position.x, 1, npc.position.z);
       this.npcs.push(npc);
     }
 
@@ -381,6 +428,7 @@ export class GameEngine {
       const npc = this.createNPC('driver');
       npc.position.set(this.rng.range(-200, 0), 0, this.rng.range(-CONFIG.WORLD_SIZE_Z / 2, CONFIG.WORLD_SIZE_Z / 2));
       npc.roadTarget = this.rng.int(0, this.roads.length);
+      if (npc.mesh) npc.mesh.position.set(npc.position.x, 1, npc.position.z);
       this.npcs.push(npc);
     }
 
@@ -388,22 +436,57 @@ export class GameEngine {
     for (let i = 0; i < 5; i++) {
       const npc = this.createNPC('bandit');
       npc.position.set(this.rng.range(100, 300), 0, this.rng.range(-100, 100));
+      if (npc.mesh) npc.mesh.position.set(npc.position.x, 1, npc.position.z);
       this.npcs.push(npc);
     }
   }
 
   private createNPC(type: NPC['type']): NPC {
-    const geo = new THREE.CapsuleGeometry(0.4, 1.2, 4, 8);
-    const color = type === 'police' ? 0x0000aa : type === 'bandit' ? 0xaa0000 : 0xffaa00;
-    const mat = new THREE.MeshLambertMaterial({ color });
-    const mesh = new THREE.Mesh(geo, mat);
-    mesh.position.y = 1;
+    // Create a visible character group
+    const group = new THREE.Group();
+    
+    const bodyColor = type === 'police' ? 0x000088 : type === 'bandit' ? 0x880000 : 0xdd8800;
+    const headColor = 0xffcc88;
+    
+    // Body
+    const bodyGeo = new THREE.CapsuleGeometry(0.3, 0.7, 4, 8);
+    const bodyMat = new THREE.MeshLambertMaterial({ color: bodyColor });
+    const body = new THREE.Mesh(bodyGeo, bodyMat);
+    body.position.y = 0.65;
+    group.add(body);
+    
+    // Head
+    const headGeo = new THREE.SphereGeometry(0.2, 8, 8);
+    const headMat = new THREE.MeshLambertMaterial({ color: headColor });
+    const head = new THREE.Mesh(headGeo, headMat);
+    head.position.y = 1.25;
+    group.add(head);
+    
+    // Police hat
+    if (type === 'police') {
+      const hatGeo = new THREE.CylinderGeometry(0.15, 0.2, 0.15, 8);
+      const hatMat = new THREE.MeshLambertMaterial({ color: 0x000044 });
+      const hat = new THREE.Mesh(hatGeo, hatMat);
+      hat.position.y = 1.45;
+      group.add(hat);
+    }
+    
+    // Bandit mask
+    if (type === 'bandit') {
+      const maskGeo = new THREE.BoxGeometry(0.3, 0.1, 0.1);
+      const maskMat = new THREE.MeshLambertMaterial({ color: 0x222222 });
+      const mask = new THREE.Mesh(maskGeo, maskMat);
+      mask.position.set(0, 1.25, 0.15);
+      group.add(mask);
+    }
+    
+    this.scene.add(group);
 
     return {
       id: `npc_${type}_${this.npcs.length}`,
       position: new THREE.Vector3(),
       velocity: new THREE.Vector3(),
-      mesh,
+      mesh: group,
       active: true,
       type,
       state: 'wander',
@@ -420,16 +503,59 @@ export class GameEngine {
     for (let i = 0; i < 12; i++) {
       const v = this.createVehicle(this.rng.pick(types));
       v.position.set(this.rng.range(-200, 50), 0, this.rng.range(-CONFIG.WORLD_SIZE_Z / 2, CONFIG.WORLD_SIZE_Z / 2));
+      if (v.mesh) {
+        v.mesh.position.set(v.position.x, 0.8, v.position.z);
+        v.rotation = this.rng.range(0, Math.PI * 2);
+        v.mesh.rotation.y = v.rotation;
+      }
       this.vehicles.push(v);
     }
   }
 
   private createVehicle(type: Vehicle['type']): Vehicle {
     const colors = { sport: 0xff0000, suv: 0x00aa00, truck: 0x884400, police: 0x0000ff };
-    const geo = new THREE.BoxGeometry(2, 1.2, 4);
-    const mat = new THREE.MeshLambertMaterial({ color: colors[type] });
-    const mesh = new THREE.Mesh(geo, mat);
-    mesh.position.y = 0.8;
+    const group = new THREE.Group();
+    
+    // Car body
+    const bodyGeo = new THREE.BoxGeometry(2, 0.8, 4);
+    const bodyMat = new THREE.MeshLambertMaterial({ color: colors[type] });
+    const body = new THREE.Mesh(bodyGeo, bodyMat);
+    body.position.y = 0.5;
+    group.add(body);
+    
+    // Car roof/cabin
+    const roofGeo = new THREE.BoxGeometry(1.6, 0.6, 2);
+    const roofMat = new THREE.MeshLambertMaterial({ color: 0x333333 });
+    const roof = new THREE.Mesh(roofGeo, roofMat);
+    roof.position.y = 1.1;
+    roof.position.z = -0.3;
+    group.add(roof);
+    
+    // Wheels
+    const wheelGeo = new THREE.CylinderGeometry(0.3, 0.3, 0.2, 8);
+    const wheelMat = new THREE.MeshLambertMaterial({ color: 0x111111 });
+    const wheelPositions = [
+      [-0.9, 0.3, 1.2], [0.9, 0.3, 1.2],
+      [-0.9, 0.3, -1.2], [0.9, 0.3, -1.2]
+    ];
+    for (const [x, y, z] of wheelPositions) {
+      const wheel = new THREE.Mesh(wheelGeo, wheelMat);
+      wheel.position.set(x, y, z);
+      wheel.rotation.z = Math.PI / 2;
+      group.add(wheel);
+    }
+    
+    // Police lights
+    if (type === 'police') {
+      const lightGeo = new THREE.BoxGeometry(0.8, 0.2, 0.3);
+      const lightMat = new THREE.MeshLambertMaterial({ color: 0xff0000, emissive: 0xff0000 });
+      const light = new THREE.Mesh(lightGeo, lightMat);
+      light.position.y = 1.5;
+      group.add(light);
+    }
+    
+    this.scene.add(group);
+    const mesh = group;
 
     const speeds = {
       sport: { top: CONFIG.VEHICLE_SPORT_TOP_SPEED, accel: CONFIG.VEHICLE_SPORT_ACCEL },
@@ -724,6 +850,11 @@ export class GameEngine {
     if (this.player.mesh) {
       this.player.mesh.position.copy(this.player.position);
       this.player.mesh.position.y += CONFIG.PLAYER_HEIGHT / 2;
+      // Rotate to face movement direction
+      if (moveDir.length() > 0.1) {
+        const targetAngle = Math.atan2(moveDir.x, moveDir.z);
+        this.player.mesh.rotation.y = targetAngle;
+      }
     }
   }
 
@@ -818,8 +949,9 @@ export class GameEngine {
           }
           if (npc.target) {
             const dir = npc.target.clone().sub(npc.position).normalize();
+            npc.velocity.copy(dir).multiplyScalar(CONFIG.NPC_WALK_SPEED);
             npc.position.add(dir.multiplyScalar(CONFIG.NPC_WALK_SPEED * dt));
-            if (npc.position.distanceTo(npc.target) < 2) npc.target = null;
+            if (npc.position.distanceTo(npc.target) < 2) { npc.target = null; npc.velocity.set(0,0,0); }
           }
           // Detect crime
           if (this.player.heat > 0 && distToPlayer < CONFIG.NPC_DETECT_RANGE) {
@@ -833,8 +965,9 @@ export class GameEngine {
 
         case 'flee':
           const fleeDir = npc.position.clone().sub(this.player.position).normalize();
+          npc.velocity.copy(fleeDir).multiplyScalar(CONFIG.NPC_FLEE_SPEED);
           npc.position.add(fleeDir.multiplyScalar(CONFIG.NPC_FLEE_SPEED * dt));
-          if (npc.stateTimer <= 0) npc.state = 'wander';
+          if (npc.stateTimer <= 0) { npc.state = 'wander'; npc.velocity.set(0,0,0); }
           break;
 
         case 'attack':
@@ -844,7 +977,10 @@ export class GameEngine {
           }
           if (distToPlayer < CONFIG.ENEMY_DETECT_RANGE) {
             const atkDir = this.player.position.clone().sub(npc.position).normalize();
+            npc.velocity.copy(atkDir).multiplyScalar(CONFIG.ENEMY_SPEED);
             npc.position.add(atkDir.multiplyScalar(CONFIG.ENEMY_SPEED * dt));
+          } else {
+            npc.velocity.set(0,0,0);
           }
           if (distToPlayer > CONFIG.ENEMY_DETECT_RANGE * 1.5) npc.state = 'wander';
           break;
@@ -853,6 +989,7 @@ export class GameEngine {
           // Police pursuit
           const pursDir = this.player.position.clone().sub(npc.position).normalize();
           const pursSpeed = this.player.inVehicle ? CONFIG.HEAT_POLICE_PURSUIT_SPEED : CONFIG.PLAYER_SPRINT_SPEED;
+          npc.velocity.copy(pursDir).multiplyScalar(pursSpeed);
           npc.position.add(pursDir.multiplyScalar(pursSpeed * dt));
           // Arrest
           if (distToPlayer < CONFIG.HEAT_ARREST_RANGE) {
@@ -875,6 +1012,11 @@ export class GameEngine {
       if (npc.mesh) {
         npc.mesh.position.copy(npc.position);
         npc.mesh.position.y = 1;
+        // Rotate to face movement direction
+        if (npc.velocity.length() > 0.1) {
+          const angle = Math.atan2(npc.velocity.x, npc.velocity.z);
+          npc.mesh.rotation.y = angle;
+        }
       }
     }
   }
@@ -1122,11 +1264,15 @@ export class GameEngine {
         this.player.position.y = v.position.y;
         this.player.position.z = v.position.z;
         this.player.velocity.set(0, 0, 0);
+        // Show player mesh again
+        if (this.player.mesh) this.player.mesh.visible = true;
         this.keys.delete('KeyE'); // Prevent re-trigger
       } else {
         for (const v of this.vehicles) {
           if (v.position.distanceTo(this.player.position) < CONFIG.VEHICLE_ENTER_RANGE) {
             this.player.inVehicle = v;
+            // Hide player mesh when in vehicle
+            if (this.player.mesh) this.player.mesh.visible = false;
             if (v.occupied && v.driverNPC) {
               v.driverNPC.state = 'flee';
               v.driverNPC.stateTimer = 5;
@@ -1310,17 +1456,49 @@ export class GameEngine {
     }
   }
 
-  private renderUI() {
-    // Remove old UI
-    const oldUI = document.getElementById('game-ui');
-    if (oldUI) oldUI.remove();
+  private uiInitialized = false;
 
+  private initUI() {
+    if (this.uiInitialized) return;
+    this.uiInitialized = true;
+
+    // Create persistent UI container
     const ui = document.createElement('div');
     ui.id = 'game-ui';
-    ui.style.cssText = 'position:fixed;top:0;left:0;width:100%;height:100%;pointer-events:none;font-family:monospace;color:white;text-shadow:1px 1px 2px black;';
+    ui.style.cssText = 'position:fixed;top:0;left:0;width:100%;height:100%;pointer-events:none;font-family:monospace;color:white;text-shadow:1px 1px 2px black;z-index:100;';
+    document.body.appendChild(ui);
+
+    // Create persistent pause overlay
+    const pauseOverlay = document.createElement('div');
+    pauseOverlay.id = 'pause-overlay';
+    pauseOverlay.style.cssText = 'position:absolute;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.85);display:none;flex-direction:column;align-items:center;justify-content:center;pointer-events:auto;cursor:pointer;z-index:200;';
+    pauseOverlay.innerHTML = `
+      <h1 style="font-size:48px;margin-bottom:20px;color:white;">SHATTERED MERIDIAN</h1>
+      <p style="font-size:18px;margin-bottom:10px;color:white;">Click anywhere to play</p>
+      <div style="font-size:14px;text-align:left;line-height:1.8;color:#ccc;">
+        <p>WASD - Move/Drive | Mouse - Camera</p>
+        <p>Shift - Sprint/Handbrake | Space - Jump/Glide</p>
+        <p>E - Interact/Enter Vehicle | F - Tether/Debug</p>
+        <p>Left Click - Attack/Launch | Right Click - Dodge</p>
+        <p>Q - Lock-on Target</p>
+        <p style="margin-top:10px;color:#888;">Seed: ${this.seed}</p>
+      </div>
+    `;
+    pauseOverlay.addEventListener('click', (e) => {
+      e.stopPropagation();
+      this.renderer.domElement.requestPointerLock();
+    });
+    document.body.appendChild(pauseOverlay);
+  }
+
+  private renderUI() {
+    this.initUI();
+
+    const ui = document.getElementById('game-ui');
+    if (!ui) return;
 
     // Health (hearts)
-    let heartsHTML = '<div style="position:absolute;top:10px;left:10px;font-size:24px;">';
+    let heartsHTML = '<div id="hud-hearts" style="position:absolute;top:10px;left:10px;font-size:24px;">';
     for (let i = 0; i < this.player.maxHealth; i++) {
       heartsHTML += i < this.player.health ? '❤️' : '🖤';
     }
@@ -1328,7 +1506,7 @@ export class GameEngine {
 
     // Stamina bar
     const staminaPct = (this.player.stamina / this.player.maxStamina) * 100;
-    const staminaHTML = `<div style="position:absolute;top:45px;left:10px;width:200px;height:15px;background:rgba(0,0,0,0.5);border:1px solid white;"><div style="width:${staminaPct}%;height:100%;background:${staminaPct < 30 ? 'red' : 'cyan'};"></div></div>`;
+    const staminaHTML = `<div style="position:absolute;top:45px;left:10px;width:200px;height:15px;background:rgba(0,0,0,0.5);border:1px solid white;"><div style="width:${staminaPct}%;height:100%;background:${staminaPct < 30 ? 'red' : 'cyan'};transition:width 0.1s;"></div></div>`;
 
     // Heat
     const heatHTML = `<div style="position:absolute;top:70px;left:10px;font-size:18px;">⭐${'★'.repeat(this.player.heat)}${'☆'.repeat(CONFIG.HEAT_MAX - this.player.heat)} ${this.player.heatDecayTimer > 0 ? `(${Math.ceil(CONFIG.HEAT_DECAY_TIME - this.player.heatDecayTimer)}s)` : ''}</div>`;
@@ -1340,31 +1518,14 @@ export class GameEngine {
     const abilitiesHTML = `<div style="position:absolute;top:120px;left:10px;font-size:14px;">${this.player.hasGlider ? '🪂 Glider' : ''} ${this.player.hasTether ? '🔗 Tether' : ''}</div>`;
 
     // Minimap
-    const minimapHTML = `<div style="position:absolute;top:10px;right:10px;width:150px;height:150px;background:rgba(0,0,0,0.7);border:2px solid white;"><canvas id="minimap" width="150" height="150"></canvas></div>`;
+    const minimapHTML = `<div style="position:absolute;top:10px;right:10px;width:150px;height:150px;background:rgba(0,0,0,0.7);border:2px solid white;border-radius:4px;"><canvas id="minimap" width="150" height="150"></canvas></div>`;
 
     // Mission HUD
     let missionHTML = '';
     const activeMission = this.missions.find(m => m.active && !m.completed && !m.failed);
     if (activeMission) {
       const step = activeMission.steps[activeMission.currentStep];
-      missionHTML = `<div style="position:absolute;top:170px;left:10px;font-size:16px;background:rgba(0,0,0,0.7);padding:5px;border-radius:4px;">📋 ${activeMission.title}<br>→ ${step?.type || 'Complete!'}${activeMission.timer > 0 ? ` (${Math.ceil(step?.timeLimit! - activeMission.timer)}s)` : ''}</div>`;
-    }
-
-    // Pause overlay
-    let pauseHTML = '';
-    if (this.showPause) {
-      pauseHTML = `<div style="position:absolute;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.8);display:flex;flex-direction:column;align-items:center;justify-content:center;pointer-events:auto;">
-        <h1 style="font-size:48px;margin-bottom:20px;">SHATTERED MERIDIAN</h1>
-        <p style="font-size:18px;margin-bottom:10px;">Click to play</p>
-        <div style="font-size:14px;text-align:left;line-height:1.8;">
-          <p>WASD - Move/Drive | Mouse - Camera</p>
-          <p>Shift - Sprint/Handbrake | Space - Jump/Glide</p>
-          <p>E - Interact/Enter Vehicle | F - Tether/Debug</p>
-          <p>Left Click - Attack/Launch | Right Click - Dodge</p>
-          <p>Q - Lock-on Target</p>
-          <p style="margin-top:10px;">Seed: ${this.seed}</p>
-        </div>
-      </div>`;
+      missionHTML = `<div style="position:absolute;top:170px;left:10px;font-size:16px;background:rgba(0,0,0,0.7);padding:5px 10px;border-radius:4px;">📋 ${activeMission.title}<br>→ ${step?.type || 'Complete!'}${activeMission.timer > 0 ? ` (${Math.ceil((step?.timeLimit || 0) - activeMission.timer)}s)` : ''}</div>`;
     }
 
     // Debug overlay
@@ -1382,8 +1543,13 @@ export class GameEngine {
       </div>`;
     }
 
-    ui.innerHTML = heartsHTML + staminaHTML + heatHTML + cashHTML + abilitiesHTML + minimapHTML + missionHTML + pauseHTML + debugHTML;
-    document.body.appendChild(ui);
+    ui.innerHTML = heartsHTML + staminaHTML + heatHTML + cashHTML + abilitiesHTML + minimapHTML + missionHTML + debugHTML;
+
+    // Toggle pause overlay visibility
+    const pauseOverlay = document.getElementById('pause-overlay');
+    if (pauseOverlay) {
+      pauseOverlay.style.display = this.showPause ? 'flex' : 'none';
+    }
 
     // Draw minimap
     this.drawMinimap();
